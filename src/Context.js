@@ -1,38 +1,83 @@
-import React,{useState,useEffect,useContext} from "react"
-import { commerce } from "./lib/Commerce";
-const AppContext = React.createContext();
+import React,{useState,useEffect,createContext, useContext} from "react"
+import { commerce } from "./lib/commerce"
 
-export const AppProvider =({children})=>{
+const AppContext = createContext()
+
+const AppProvider =({children})=>{
     const [products, setProducts] = useState([])
     const [cart, setCart] = useState({})
-    const fetchProduct = async()=>{
+    const [order, setOrder] = useState({})
+    const [errorMessage, setErrorMessage] = useState("")
+
+    const fetchProducts = async ()=>{
         try {
-            const response = await commerce.products.list()
-            console.log(response)
-            const {data} = response;
-            setProducts(data)
+            const {data} = await commerce.products.list()
+            setProducts(data)  
         } catch (error) {
-            console.log("There was an error in fetching the data ", error)
+            console.log(error)
         }
+       
     }
-    const fetchCart = async()=>{
-        setCart(await commerce.cart.retrieve())
+    const fetchCart = async ()=>{
+    try {
+        const response = await commerce.cart.retrieve()
+        setCart(response)
+        
+    } catch (error) {
+        console.log(error);
+    }   
+  
+    }
 
-    }
-    const handleAddToCart= async (productId,quantity)=>{
+    const handleAddToCart = async (productId,quantity)=>{
         const item = await commerce.cart.add(productId,quantity)
-        setCart(item.cart)
+       setCart(item.cart)
     }
 
-    useEffect(() => {
-        fetchProduct()
+    const handleUpdateCartQty = async(lineItemId, quantity)=>{
+        const response = await commerce.cart.update(lineItemId, {quantity})
+        setCart(response.cart)
+    }
+
+    const handleRemoveCart = async (lineItemId)=>{
+        const response = await commerce.cart.remove(lineItemId)
+        setCart(response.cart)
+    }
+    const handleEmptyCart = async()=>{
+        const response = await commerce.cart.empty()
+         setCart(response.cart)
+    }
+
+    const refreshCart = async ()=>{
+        const newCart = await commerce.cart.refresh() 
+        setCart(newCart)
+    }
+    
+    const handleCaptureCheckout = async (checkoutTokenId, newOrder) => {
+        try {
+          const incomingOrder = await commerce.checkout.capture(checkoutTokenId, newOrder);
+    
+          setOrder(incomingOrder);
+    
+          refreshCart();
+        } catch (error) {
+          setErrorMessage(error.data.error.message);
+        }
+      };
+
+    useEffect(()=>{
+     fetchProducts()
         fetchCart()
-    }, [])
-    console.log(products)
-    return <AppContext.Provider value={{products,handleAddToCart}}> {children} </AppContext.Provider>
+    },[])
+ console.log(cart)
+ console.log(cart.line_items)
+//  console.log(cart.line_items.length)
+  
+  return  <AppContext.Provider value={{products,cart,handleAddToCart,handleUpdateCartQty,handleRemoveCart,handleEmptyCart,refreshCart,handleCaptureCheckout, order,errorMessage}}> {children}</AppContext.Provider>
 }
 
 export const useGlobalContext=()=>{
     return useContext(AppContext)
 }
 
+export default AppProvider
